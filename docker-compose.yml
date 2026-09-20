@@ -1,0 +1,40 @@
+services:
+  mongo:
+    image: ${REGISTRY:-docker.m.daocloud.io/library}/mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        REGISTRY: ${REGISTRY:-docker.m.daocloud.io/library}
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/todo
+    ports:
+      - "8080:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        REGISTRY: ${REGISTRY:-docker.m.daocloud.io/library}
+        BACKEND_URL: http://backend:8080
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
