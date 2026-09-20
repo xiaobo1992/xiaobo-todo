@@ -12,7 +12,9 @@ repositories {
 
 dependencies {
     annotationProcessor("io.micronaut.serde:micronaut-serde-processor")
+    annotationProcessor("io.micronaut.validation:micronaut-validation-processor")
     implementation("io.micronaut:micronaut-http-server-netty")
+    implementation("io.micronaut.validation:micronaut-validation")
     implementation("io.micronaut.serde:micronaut-serde-jackson")
     implementation("io.micronaut.mongodb:micronaut-mongo-sync")
     runtimeOnly("ch.qos.logback:logback-classic")
