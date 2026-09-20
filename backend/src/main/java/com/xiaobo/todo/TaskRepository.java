@@ -1,88 +1,89 @@
 package com.xiaobo.todo;
 
-import static com.mongodb.client.model.Filters.eq;
-
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.FindOneAndUpdateOptions;
-import com.mongodb.client.model.ReturnDocument;
-import com.mongodb.client.model.Sorts;
-import com.mongodb.client.model.Updates;
-import io.micronaut.context.annotation.Value;
-import jakarta.inject.Singleton;
-import java.time.Instant;
-import java.time.LocalDate;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import org.bson.Document;
-import org.bson.conversions.Bson;
-import org.bson.types.ObjectId;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Repository;
 
-@Singleton
+/** Keeps tasks in memory and writes them to a local JSON file on every change. */
+@Repository
 public class TaskRepository {
 
-    private final MongoCollection<Document> tasks;
+    private final ObjectMapper mapper;
+    private final Path file;
+    private final Map<String, Task> tasks = new LinkedHashMap<>();
 
-    public TaskRepository(MongoClient client, @Value("${mongodb.database:todo}") String database) {
-        this.tasks = client.getDatabase(database).getCollection("tasks");
+    public TaskRepository(ObjectMapper mapper, @Value("${todo.data-file}") String dataFile) {
+        this.mapper = mapper;
+        this.file = Path.of(dataFile).toAbsolutePath();
+        load();
     }
 
-    public List<Task> findAll() {
-        List<Task> result = new ArrayList<>();
-        tasks.find().sort(Sorts.descending("createdDate")).forEach(d -> result.add(toTask(d)));
-        return result;
+    private void load() {
+        if (!Files.exists(file)) {
+            return;
+        }
+        try {
+            if (Files.size(file) == 0) {
+                return;
+            }
+            for (Task t : mapper.readValue(file.toFile(), new TypeReference<List<Task>>() {})) {
+                tasks.put(t.id(), t);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot read tasks file " + file, e);
+        }
     }
 
-    public Task create(TaskRequest req) {
-        Document doc = new Document("title", req.title())
-                .append("description", req.description())
-                .append("completed", Boolean.TRUE.equals(req.completed()))
-                .append("createdDate", Instant.now().toString());
-        if (req.dueDate() != null) doc.append("dueDate", req.dueDate().toString());
-        if (req.additionalContent() != null) doc.append("additionalContent", req.additionalContent());
-        tasks.insertOne(doc);
-        return toTask(doc);
+    private void persist() {
+        try {
+            Files.createDirectories(file.getParent());
+            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
+            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), new ArrayList<>(tasks.values()));
+            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot write tasks file " + file, e);
+        }
     }
 
-    public Optional<Task> update(String id, TaskRequest req) {
-        ObjectId oid = parse(id);
-        if (oid == null) return Optional.empty();
-        List<Bson> updates = new ArrayList<>();
-        updates.add(Updates.set("title", req.title()));
-        updates.add(Updates.set("description", req.description()));
-        updates.add(req.dueDate() != null
-                ? Updates.set("dueDate", req.dueDate().toString())
-                : Updates.unset("dueDate"));
-        updates.add(req.additionalContent() != null
-                ? Updates.set("additionalContent", req.additionalContent())
-                : Updates.unset("additionalContent"));
-        if (req.completed() != null) updates.add(Updates.set("completed", req.completed()));
-        Document updated = tasks.findOneAndUpdate(
-                eq("_id", oid),
-                Updates.combine(updates),
-                new FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER));
-        return Optional.ofNullable(updated).map(TaskRepository::toTask);
+    public synchronized List<Task> findAllByOrderByCreatedDateDesc() {
+        return tasks.values().stream()
+                .sorted(Comparator.comparing(Task::createdDate).reversed())
+                .toList();
     }
 
-    public boolean delete(String id) {
-        ObjectId oid = parse(id);
-        return oid != null && tasks.deleteOne(eq("_id", oid)).getDeletedCount() > 0;
+    public synchronized Optional<Task> findById(String id) {
+        return Optional.ofNullable(tasks.get(id));
     }
 
-    private static ObjectId parse(String id) {
-        return ObjectId.isValid(id) ? new ObjectId(id) : null;
+    public synchronized boolean existsById(String id) {
+        return tasks.containsKey(id);
     }
 
-    private static Task toTask(Document d) {
-        String due = d.getString("dueDate");
-        return new Task(
-                d.getObjectId("_id").toHexString(),
-                d.getString("title"),
-                d.getString("description"),
-                d.getBoolean("completed", false),
-                Instant.parse(d.getString("createdDate")),
-                due == null ? null : LocalDate.parse(due),
-                d.getString("additionalContent"));
+    public synchronized Task save(Task task) {
+        Task saved = task.id() != null ? task : new Task(
+                UUID.randomUUID().toString(), task.title(), task.description(), task.completed(),
+                task.createdDate(), task.dueDate(), task.additionalContent());
+        tasks.put(saved.id(), saved);
+        persist();
+        return saved;
+    }
+
+    public synchronized void deleteById(String id) {
+        if (tasks.remove(id) != null) {
+            persist();
+        }
     }
 }

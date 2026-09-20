@@ -46,7 +46,7 @@ export default function Home() {
         <h1>Todo</h1>
         <Link href="/tasks/new" className="btn">+ New task</Link>
       </div>
-      {error && <p className="error">Backend error: {error}</p>}
+      {error && <p className="error">Error: {error}</p>}
       {!tasks && !error && <p>Loading…</p>}
       {tasks && (
         <>

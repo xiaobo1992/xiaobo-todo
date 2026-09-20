@@ -1,14 +1,15 @@
 # Todo App
 
-A simple todo list. Next.js frontend, Micronaut backend, MongoDB storage, all run with Docker Compose.
+A simple todo list. Next.js frontend, Spring Boot backend, local JSON file storage (no database), all run with Docker Compose.
 
 > **Note:** While developing this project, `docker pull` from Docker Hub was unreliable from my network in China (timeouts, `401 Unauthorized` from mirrors), so I could not get a full `docker compose up` run to complete and verify the app end to end. Please review the entire work in the repository: https://github.com/xiaobo1992/xiaobo-todo. It contains the full backend (Task CRUD API and health check), frontend (list, create and edit pages), Docker configuration, and the original requirements in [prompt.md](prompt.md).
 
 | Service  | Tech                     | URL                          |
 |----------|--------------------------|------------------------------|
 | frontend | Next.js 15 (Node 20)     | http://localhost:3000        |
-| backend  | Micronaut 4 (Java 17)    | http://localhost:8080        |
-| mongo    | MongoDB 7                | internal (`mongo:27017`)     |
+| backend  | Spring Boot 3 (Java 17)  | http://localhost:8080        |
+
+> The backend uses Spring Boot rather than Micronaut because the Micronaut dependencies kept failing to install (Gradle plugin and artifact downloads).
 
 ## Prerequisites
 
@@ -25,13 +26,29 @@ The first build downloads base images and dependencies and takes a few minutes. 
 When it is up:
 
 - Open http://localhost:3000 for the todo UI.
-- Check the backend: `curl http://localhost:8080/health` returns `{"status":"UP","database":"UP"}`.
+- Tasks are saved by the backend in `data/tasks.json` (mounted from `./data`); the file is loaded on start and rewritten on every change. Set `TODO_DATA_FILE` to use another path.
+- Check the backend: `curl http://localhost:8080/health` returns `{"status":"UP"}`.
+
+## Run locally (without Docker)
+
+Start the backend (http://localhost:8080):
+
+```bash
+cd ./backend
+./gradlew bootrun
+```
+
+In another terminal, start the frontend (http://localhost:3000):
+
+```bash
+cd ./frontend
+npm start
+```
 
 ## Stop the app
 
 ```bash
-docker compose down        # stop containers, keep data
-docker compose down -v     # stop containers and delete the MongoDB data
+docker compose down
 ```
 
 ## Using the app
@@ -69,7 +86,7 @@ To use Docker Hub directly, set `REGISTRY=docker.io/library`. The backend build 
 ## Project layout
 
 ```
-backend/    Micronaut API (Task CRUD + /health)
+backend/    Spring Boot API (Task CRUD + /health)
 frontend/   Next.js UI
 docker-compose.yml
 .env        Registry mirror setting

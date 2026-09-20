@@ -1,10 +1,10 @@
-micronaut:
+spring:
   application:
     name: todo-backend
-  server:
-    port: 8080
-    cors:
-      enabled: true
 
-mongodb:
-  uri: ${MONGODB_URI:`mongodb://localhost:27017/todo`}
+server:
+  port: 8080
+
+todo:
+  # Tasks are loaded from and saved to this JSON file.
+  data-file: ${TODO_DATA_FILE:./data/tasks.json}
