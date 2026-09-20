@@ -1,5 +1,5 @@
 ARG REGISTRY=docker.m.daocloud.io/library
-FROM ${REGISTRY}/node:22-alpine AS build
+FROM ${REGISTRY}/node:20-alpine AS build
 WORKDIR /app
 COPY package.json ./
 RUN npm install
@@ -8,7 +8,7 @@ ARG BACKEND_URL=http://backend:8080
 ENV BACKEND_URL=$BACKEND_URL
 RUN npm run build
 
-FROM ${REGISTRY}/node:22-alpine
+FROM ${REGISTRY}/node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/.next/standalone ./
