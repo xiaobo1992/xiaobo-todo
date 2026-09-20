@@ -1,0 +1,19 @@
+// Used only by the Docker build: route Gradle through Aliyun mirrors (plugins.gradle.org / Maven Central are slow in China).
+def aliyunPublic = "https://maven.aliyun.com/repository/public"
+def aliyunPlugins = "https://maven.aliyun.com/repository/gradle-plugin"
+
+beforeSettings { settings ->
+    settings.pluginManagement {
+        repositories {
+            maven { url = uri(aliyunPlugins) }
+            maven { url = uri(aliyunPublic) }
+            gradlePluginPortal()
+        }
+    }
+}
+
+allprojects {
+    repositories {
+        maven { url = uri(aliyunPublic) }
+    }
+}
